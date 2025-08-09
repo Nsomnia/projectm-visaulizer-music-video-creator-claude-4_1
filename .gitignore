@@ -39,3 +39,8 @@
 
 # debug information files
 *.dwo
+# Created by venv; see https://docs.python.org/3/library/venv.html
+
+# project dirs
+build/
+external/
