@@ -100,8 +100,12 @@ void ProjectMWidget::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     if (pImpl->projectM && pImpl->initialized) {
-        // Render ProjectM frame
-        projectm_opengl_render_frame(pImpl->projectM);
+        // Render ProjectM frame (guard against upstream exceptions)
+        try {
+            projectm_opengl_render_frame(pImpl->projectM);
+        } catch (const std::exception& e) {
+            std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
+        }
     }
 }
 
@@ -158,6 +162,7 @@ bool ProjectMWidget::initializeProjectM() {
         presetPath = "./external/projectm/presets";
     }
 #endif
+    size_t presetCount = 0;
     if (std::filesystem::exists(presetPath)) {
         for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
             if (entry.path().extension() == ".milk") {
@@ -166,13 +171,16 @@ bool ProjectMWidget::initializeProjectM() {
                                             true);
             }
         }
-        
-        size_t presetCount = projectm_playlist_size(pImpl->playlist);
-        std::cout << "[ProjectMWidget] Loaded " << presetCount << " presets" << std::endl;
-        // Do not auto-switch; keep idle preset initially for debug visibility
-        if (presetCount > 0) {
-            projectm_playlist_set_position(pImpl->playlist, 0, false);
-        }
+        presetCount = projectm_playlist_size(pImpl->playlist);
+    }
+    std::cout << "[ProjectMWidget] Loaded " << presetCount << " presets" << std::endl;
+    // Do not auto-switch; keep idle preset initially for debug visibility
+    if (presetCount > 0) {
+        projectm_playlist_set_position(pImpl->playlist, 0, false);
+        projectm_set_preset_locked(pImpl->projectM, false);
+    } else {
+        // Avoid upstream playlist exceptions by locking preset switching
+        projectm_set_preset_locked(pImpl->projectM, true);
     }
     
     // Load default idle preset for initial visualization when no audio is playing
@@ -348,15 +356,20 @@ void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const
         if (!std::filesystem::exists(presetPath)) presetPath = "./external/projectm/presets";
 #endif
     }
+    size_t count = 0;
     if (std::filesystem::exists(presetPath)) {
         for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
             if (entry.path().extension() == ".milk") {
                 projectm_playlist_add_preset(pImpl->playlist, entry.path().string().c_str(), true);
             }
         }
-        if (projectm_playlist_size(pImpl->playlist) > 0) {
-            projectm_playlist_set_position(pImpl->playlist, 0, false);
-        }
+        count = projectm_playlist_size(pImpl->playlist);
+    }
+    if (count > 0) {
+        projectm_playlist_set_position(pImpl->playlist, 0, false);
+        projectm_set_preset_locked(pImpl->projectM, false);
+    } else {
+        projectm_set_preset_locked(pImpl->projectM, true);
     }
 }
 
