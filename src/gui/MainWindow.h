@@ -151,6 +151,8 @@ private:
     QLabel* m_timeLabel;
     
     // Preset controls
+    QPushButton* m_prevPresetBtn;
+    QPushButton* m_nextPresetBtn;
     QPushButton* m_favoriteBtn;
     QPushButton* m_blacklistBtn;
     QLabel* m_presetNameLabel;

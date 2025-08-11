@@ -6,6 +6,7 @@
 #pragma once
 
 #include <QOpenGLWidget>
+#include <QOpenGLFunctions>
 #include <memory>
 #include <string>
 
@@ -18,7 +19,7 @@ namespace NeonWave::GUI {
  * This widget integrates ProjectM into Qt's OpenGL rendering system,
  * providing audio visualization with MilkDrop preset support.
  */
-class ProjectMWidget : public QOpenGLWidget {
+class ProjectMWidget : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
     
 public:

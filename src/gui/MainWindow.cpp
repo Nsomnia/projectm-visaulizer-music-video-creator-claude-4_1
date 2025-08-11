@@ -4,7 +4,7 @@
  */
 
 #include "MainWindow.h"
-#include "ProjectMWidget.h"
+#include "visualizer/ProjectMWidget.h"
 #include "PlaylistWidget.h"
 #include "SettingsDialog.h"
 
@@ -18,6 +18,7 @@
 #include <QSlider>
 #include <QLabel>
 #include <QFileDialog>
+#include <QDir>
 #include <QMessageBox>
 #include <QStyle>
 #include <QTimer>
@@ -156,6 +157,8 @@ void MainWindow::setupCentralWidget() {
     
     presetLayout->addWidget(new QLabel("Preset:"));
     presetLayout->addWidget(m_presetNameLabel, 1);
+    presetLayout->addWidget(m_prevPresetBtn);
+    presetLayout->addWidget(m_nextPresetBtn);
     presetLayout->addWidget(m_favoriteBtn);
     presetLayout->addWidget(m_blacklistBtn);
     
@@ -230,6 +233,22 @@ void MainWindow::createPresetControls() {
     m_presetNameLabel = new QLabel("No preset loaded");
     m_presetNameLabel->setStyleSheet("QLabel { font-weight: bold; }");
     
+    // Previous preset
+    m_prevPresetBtn = new QPushButton();
+    m_prevPresetBtn->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
+    m_prevPresetBtn->setToolTip("Previous Preset");
+    connect(m_prevPresetBtn, &QPushButton::clicked, [this]() {
+        if (m_visualizer) m_visualizer->previousPreset();
+    });
+
+    // Next preset
+    m_nextPresetBtn = new QPushButton();
+    m_nextPresetBtn->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
+    m_nextPresetBtn->setToolTip("Next Preset");
+    connect(m_nextPresetBtn, &QPushButton::clicked, [this]() {
+        if (m_visualizer) m_visualizer->nextPreset();
+    });
+
     // Favorite button
     m_favoriteBtn = new QPushButton();
     m_favoriteBtn->setIcon(style()->standardIcon(QStyle::SP_DialogYesButton));
@@ -244,6 +263,13 @@ void MainWindow::createPresetControls() {
     m_blacklistBtn->setToolTip("Blacklist Preset");
     connect(m_blacklistBtn, &QPushButton::clicked, 
             this, &MainWindow::onBlacklistPreset);
+
+    // Update preset label on changes from visualizer
+    if (m_visualizer) {
+        connect(m_visualizer, &ProjectMWidget::presetChanged, this, [this](const QString& name) {
+            m_presetNameLabel->setText(name);
+        });
+    }
 }
 
 void MainWindow::onPlayPauseToggled() {

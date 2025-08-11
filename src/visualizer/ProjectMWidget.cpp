@@ -8,10 +8,13 @@
 #include <QOpenGLContext>
 #include <iostream>
 #include <filesystem>
+#include <cstdlib>
 
 // ProjectM headers
 #include <projectM-4/projectM.h>
 #include <projectM-4/playlist.h>
+#include <projectM-4/parameters.h>
+#include <projectM-4/render_opengl.h>
 
 namespace NeonWave::GUI {
 
@@ -51,7 +54,8 @@ ProjectMWidget::ProjectMWidget(QWidget* parent)
     // Set OpenGL format
     QSurfaceFormat format;
     format.setVersion(3, 3);
-    format.setProfile(QSurfaceFormat::CoreProfile);
+    // Some drivers/presets assume compatibility profile
+    format.setProfile(QSurfaceFormat::CompatibilityProfile);
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
     format.setSamples(4); // Enable multisampling
@@ -104,41 +108,37 @@ void ProjectMWidget::paintGL() {
 bool ProjectMWidget::initializeProjectM() {
     std::cout << "[ProjectMWidget] Initializing ProjectM..." << std::endl;
     
-    // Set ProjectM settings
-    projectm_settings settings = {};
-    settings.window_width = width();
-    settings.window_height = height();
-    settings.fps = 60;
-    settings.mesh_x = 32;
-    settings.mesh_y = 24;
-    settings.aspect_correction = true;
-    settings.beat_sensitivity = 1.0f;
-    settings.hard_cut_duration = 3.0f;
-    settings.hard_cut_enabled = true;
-    settings.soft_cut_duration = 10.0f;
-    settings.preset_duration = 30.0f;
-    
-    // Default preset path
-    std::string presetPath = "/usr/share/projectM/presets";
-    if (!std::filesystem::exists(presetPath)) {
-        // Try local build path
-        presetPath = "./external/projectm/presets";
-    }
-    settings.preset_path = presetPath.c_str();
-    
-    // Default texture path
-    std::string texturePath = "/usr/share/projectM/textures";
-    if (!std::filesystem::exists(texturePath)) {
-        texturePath = "./external/projectm/textures";
-    }
-    settings.texture_search_paths = texturePath.c_str();
-    
-    // Create ProjectM instance
-    pImpl->projectM = projectm_create(&settings);
+    // Create ProjectM instance (v4 API has no settings struct)
+    pImpl->projectM = projectm_create();
     if (!pImpl->projectM) {
         std::cerr << "[ProjectMWidget] Failed to create ProjectM instance!" << std::endl;
         return false;
     }
+
+    // Apply parameters via API
+    projectm_set_window_size(pImpl->projectM, static_cast<size_t>(width()), static_cast<size_t>(height()));
+    projectm_set_fps(pImpl->projectM, 60);
+    projectm_set_mesh_size(pImpl->projectM, 32, 24);
+    projectm_set_aspect_correction(pImpl->projectM, true);
+    projectm_set_beat_sensitivity(pImpl->projectM, 1.0f);
+    projectm_set_hard_cut_duration(pImpl->projectM, 3.0);
+    projectm_set_hard_cut_enabled(pImpl->projectM, true);
+    projectm_set_soft_cut_duration(pImpl->projectM, 10.0);
+    projectm_set_preset_duration(pImpl->projectM, 30.0);
+
+    // Texture search paths
+    std::string texturePath = "/usr/share/projectM/textures";
+#ifdef PROJECTM_DEFAULT_TEXTURES_DIR
+    if (!std::filesystem::exists(texturePath)) {
+        texturePath = PROJECTM_DEFAULT_TEXTURES_DIR;
+    }
+#else
+    if (!std::filesystem::exists(texturePath)) {
+        texturePath = "./external/projectm/textures";
+    }
+#endif
+    const char* texturePaths[] = { texturePath.c_str() };
+    projectm_set_texture_search_paths(pImpl->projectM, texturePaths, 1);
     
     // Create playlist
     pImpl->playlist = projectm_playlist_create(pImpl->projectM);
@@ -147,7 +147,17 @@ bool ProjectMWidget::initializeProjectM() {
         return false;
     }
     
-    // Load presets from directory
+    // Load presets from directory (if present)
+    std::string presetPath = "/usr/share/projectM/presets";
+#ifdef PROJECTM_DEFAULT_PRESETS_DIR
+    if (!std::filesystem::exists(presetPath)) {
+        presetPath = PROJECTM_DEFAULT_PRESETS_DIR;
+    }
+#else
+    if (!std::filesystem::exists(presetPath)) {
+        presetPath = "./external/projectm/presets";
+    }
+#endif
     if (std::filesystem::exists(presetPath)) {
         for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
             if (entry.path().extension() == ".milk") {
@@ -159,12 +169,16 @@ bool ProjectMWidget::initializeProjectM() {
         
         size_t presetCount = projectm_playlist_size(pImpl->playlist);
         std::cout << "[ProjectMWidget] Loaded " << presetCount << " presets" << std::endl;
-        
+        // Do not auto-switch; keep idle preset initially for debug visibility
         if (presetCount > 0) {
-            projectm_playlist_set_position(pImpl->playlist, 0);
-            projectm_playlist_play_next(pImpl->playlist, true);
+            projectm_playlist_set_position(pImpl->playlist, 0, false);
         }
     }
+    
+    // Load default idle preset for initial visualization when no audio is playing
+    projectm_load_preset_file(pImpl->projectM, "idle://", true);
+    pImpl->currentPresetName = "Idle";
+    emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
     
     pImpl->initialized = true;
     return true;
@@ -194,7 +208,7 @@ bool ProjectMWidget::loadPreset(const std::string& presetPath) {
         return false;
     }
     
-    projectm_load_preset_file(pImpl->projectM, presetPath.c_str());
+    projectm_load_preset_file(pImpl->projectM, presetPath.c_str(), true);
     pImpl->currentPresetName = std::filesystem::path(presetPath).stem();
     emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
     return true;
@@ -231,7 +245,7 @@ void ProjectMWidget::randomPreset() {
         size_t count = projectm_playlist_size(pImpl->playlist);
         if (count > 0) {
             size_t randomPos = rand() % count;
-            projectm_playlist_set_position(pImpl->playlist, randomPos);
+            projectm_playlist_set_position(pImpl->playlist, randomPos, true);
             projectm_playlist_play_next(pImpl->playlist, true);
             
             const char* name = projectm_playlist_item(pImpl->playlist, randomPos);
