@@ -9,6 +9,8 @@ AudioEngine::AudioEngine(QObject* parent)
     : QObject(parent)
     , m_player(std::make_unique<QMediaPlayer>())
     , m_audio_output(std::make_unique<QAudioBufferOutput>(this))
+    , m_audio_sink(nullptr)
+    , m_sink_device(nullptr)
 {
     m_player->setAudioBufferOutput(m_audio_output.get());
 
@@ -23,7 +25,11 @@ AudioEngine::AudioEngine(QObject* parent)
             this, &AudioEngine::stateChanged);
 }
 
-AudioEngine::~AudioEngine() = default;
+AudioEngine::~AudioEngine() {
+    if (m_audio_sink) {
+        m_audio_sink->stop();
+    }
+}
 
 void AudioEngine::setPlaylist(const QStringList& files) {
     m_files = files;
@@ -41,6 +47,11 @@ void AudioEngine::pause() {
 
 void AudioEngine::stop() {
     m_player->stop();
+    if (m_audio_sink) {
+        m_audio_sink->stop();
+        m_audio_sink.reset();
+        m_sink_device = nullptr;
+    }
 }
 
 void AudioEngine::next() {
@@ -72,7 +83,23 @@ void AudioEngine::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
 }
 
 void AudioEngine::onAudioBufferReceived(const QAudioBuffer& buffer) {
-    if (m_pcm && buffer.isValid()) {
+    if (!buffer.isValid()) {
+        return;
+    }
+
+    // Initialize sink on first valid buffer
+    if (!m_audio_sink) {
+        m_audio_sink = std::make_unique<QAudioSink>(buffer.format(), this);
+        m_sink_device = m_audio_sink->start();
+    }
+
+    // Write to playback device
+    if (m_sink_device) {
+        m_sink_device->write(buffer.constData<char>(), buffer.byteCount());
+    }
+
+    // Send to visualizer
+    if (m_pcm) {
         const QAudioFormat format = buffer.format();
         if (format.sampleFormat() == QAudioFormat::Float) {
             const int channels = format.channelCount();

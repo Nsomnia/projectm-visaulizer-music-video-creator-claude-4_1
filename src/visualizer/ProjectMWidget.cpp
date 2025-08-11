@@ -302,8 +302,11 @@ std::string ProjectMWidget::getCurrentPresetName() const {
 
 void ProjectMWidget::addAudioData(const float* pcmData, size_t samples) {
     if (pImpl->projectM && pImpl->initialized) {
-        // ProjectM expects stereo interleaved float samples
-        projectm_pcm_add_float(pImpl->projectM, pcmData, samples, 
+        // ProjectM expects stereo interleaved float samples.
+        // The `samples` argument is the total number of float values.
+        // For stereo data, the number of frames is half the number of samples.
+        size_t frames = samples / 2;
+        projectm_pcm_add_float(pImpl->projectM, pcmData, frames, 
                                PROJECTM_STEREO);
     }
 }

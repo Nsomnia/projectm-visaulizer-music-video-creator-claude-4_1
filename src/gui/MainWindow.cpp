@@ -34,37 +34,27 @@ MainWindow::MainWindow(QWidget *parent)
     // Set window properties
     setWindowTitle("NeonWave - Audio Visualizer");
     resize(1280, 720);
+
+    // Initialize audio engine first
+    m_audioEngine = std::make_unique<NeonWave::Core::Audio::AudioEngine>(this);
+    connect(m_audioEngine.get(), &NeonWave::Core::Audio::AudioEngine::positionChanged, this,
+            [this](qint64 posMs, qint64 durMs){ updatePlaybackPosition(posMs/1000.0, durMs/1000.0); });
+
+    // Load config before creating UI that depends on it
+    auto& cfg = NeonWave::Core::Config::instance();
+    cfg.load();
     
     // Initialize UI
     setupMenuBar();
     setupToolBar();
     setupCentralWidget();
-    // Initialize audio engine
-    m_audioEngine = std::make_unique<NeonWave::Core::Audio::AudioEngine>(this);
-    connect(m_audioEngine.get(), &NeonWave::Core::Audio::AudioEngine::positionChanged, this,
-            [this](qint64 posMs, qint64 durMs){ updatePlaybackPosition(posMs/1000.0, durMs/1000.0); });
     
-    m_audioEngine->setPCMCallback([this](const float* data, size_t samples) {
-        if (m_visualizer) {
-            m_visualizer->addAudioData(data, samples);
-        }
-    });
-    
-    // Set up status bar
-    statusBar()->showMessage("Ready");
-    
-    // Connect signals for internal state management
-    connect(this, &MainWindow::playStateChanged, 
-            [this](bool playing) {
-                m_isPlaying = playing;
-                m_playPauseBtn->setIcon(style()->standardIcon(
-                    playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
-            });
-
-    // Load config and apply to visualizer
-    auto& cfg = NeonWave::Core::Config::instance();
-    cfg.load();
+    // Now that visualizer exists, connect audio and apply settings
     if (m_visualizer) {
+        m_audioEngine->setPCMCallback([this](const float* data, size_t samples) {
+            m_visualizer->addAudioData(data, samples);
+        });
+
         const auto& v = cfg.visualizer();
         m_visualizer->setFPS(v.fps);
         m_visualizer->setMeshSize(v.meshX, v.meshY);
@@ -76,6 +66,17 @@ MainWindow::MainWindow(QWidget *parent)
         m_visualizer->setPresetLocked(v.presetLocked);
         m_visualizer->setPresetAndTextureDirs(v.presetDirectory, v.textureDirectory);
     }
+    
+    // Set up status bar
+    statusBar()->showMessage("Ready");
+    
+    // Connect signals for internal state management
+    connect(this, &MainWindow::playStateChanged, 
+            [this](bool playing) {
+                m_isPlaying = playing;
+                m_playPauseBtn->setIcon(style()->standardIcon(
+                    playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
+            });
 }
 
 MainWindow::~MainWindow() = default;
