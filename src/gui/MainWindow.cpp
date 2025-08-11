@@ -7,6 +7,8 @@
 #include "visualizer/ProjectMWidget.h"
 #include "PlaylistWidget.h"
 #include "SettingsDialog.h"
+#include "core/Config.h"
+#include "visualizer/PresetManager.h"
 
 #include <QMenuBar>
 #include <QToolBar>
@@ -48,6 +50,22 @@ MainWindow::MainWindow(QWidget *parent)
                 m_playPauseBtn->setIcon(style()->standardIcon(
                     playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
             });
+
+    // Load config and apply to visualizer
+    auto& cfg = NeonWave::Core::Config::instance();
+    cfg.load();
+    if (m_visualizer) {
+        const auto& v = cfg.visualizer();
+        m_visualizer->setFPS(v.fps);
+        m_visualizer->setMeshSize(v.meshX, v.meshY);
+        m_visualizer->setAspectCorrection(v.aspectCorrection);
+        m_visualizer->setBeatSensitivity(v.beatSensitivity);
+        m_visualizer->setHardCut(v.hardCutEnabled, v.hardCutDuration);
+        m_visualizer->setSoftCutDuration(v.softCutDuration);
+        m_visualizer->setPresetDuration(v.presetDuration);
+        m_visualizer->setPresetLocked(v.presetLocked);
+        m_visualizer->setPresetAndTextureDirs(v.presetDirectory, v.textureDirectory);
+    }
 }
 
 MainWindow::~MainWindow() = default;
@@ -312,7 +330,22 @@ void MainWindow::onAddFilesClicked() {
 
 void MainWindow::onSettingsClicked() {
     SettingsDialog dialog(this);
-    dialog.exec();
+    if (dialog.exec() == QDialog::Accepted) {
+        // Apply updated config to visualizer
+        auto& cfg = NeonWave::Core::Config::instance();
+        const auto& v = cfg.visualizer();
+        if (m_visualizer) {
+            m_visualizer->setFPS(v.fps);
+            m_visualizer->setMeshSize(v.meshX, v.meshY);
+            m_visualizer->setAspectCorrection(v.aspectCorrection);
+            m_visualizer->setBeatSensitivity(v.beatSensitivity);
+            m_visualizer->setHardCut(v.hardCutEnabled, v.hardCutDuration);
+            m_visualizer->setSoftCutDuration(v.softCutDuration);
+            m_visualizer->setPresetDuration(v.presetDuration);
+            m_visualizer->setPresetLocked(v.presetLocked);
+            m_visualizer->setPresetAndTextureDirs(v.presetDirectory, v.textureDirectory);
+        }
+    }
 }
 
 void MainWindow::onAboutClicked() {
@@ -326,12 +359,12 @@ void MainWindow::onAboutClicked() {
 }
 
 void MainWindow::onToggleFavoritePreset() {
-    bool isFavorite = m_favoriteBtn->isChecked();
-    QString message = isFavorite ? "Preset added to favorites" 
-                                 : "Preset removed from favorites";
-    statusBar()->showMessage(message);
-    
-    // TODO: Call PresetManager to save favorite state
+    const auto presetName = m_visualizer ? QString::fromStdString(m_visualizer->getCurrentPresetName()) : QString();
+    if (presetName.isEmpty()) return;
+    Visualizer::PresetManager::instance().toggleFavorite(presetName.toStdString());
+    bool isFavorite = Visualizer::PresetManager::instance().isFavorite(presetName.toStdString());
+    m_favoriteBtn->setChecked(isFavorite);
+    statusBar()->showMessage(isFavorite ? "Preset added to favorites" : "Preset removed from favorites");
 }
 
 void MainWindow::onBlacklistPreset() {
@@ -341,8 +374,11 @@ void MainWindow::onBlacklistPreset() {
         QMessageBox::Yes | QMessageBox::No);
     
     if (ret == QMessageBox::Yes) {
-        statusBar()->showMessage("Preset blacklisted");
-        // TODO: Call PresetManager to blacklist preset
+        const auto presetName = m_visualizer ? QString::fromStdString(m_visualizer->getCurrentPresetName()) : QString();
+        if (!presetName.isEmpty()) {
+            Visualizer::PresetManager::instance().addToBlacklist(presetName.toStdString());
+            statusBar()->showMessage("Preset blacklisted");
+        }
     }
 }
 

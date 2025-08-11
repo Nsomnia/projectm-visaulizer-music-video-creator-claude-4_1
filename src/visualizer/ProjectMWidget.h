@@ -72,6 +72,16 @@ public:
      * @param locked true to lock current preset
      */
     void setPresetLocked(bool locked);
+
+    // Settings application (from Config/SettingsDialog)
+    void setFPS(int fps);
+    void setMeshSize(int x, int y);
+    void setAspectCorrection(bool enabled);
+    void setBeatSensitivity(float sensitivity);
+    void setHardCut(bool enabled, double durationSeconds);
+    void setSoftCutDuration(double durationSeconds);
+    void setPresetDuration(double seconds);
+    void setPresetAndTextureDirs(const std::string& presetDir, const std::string& textureDir);
     
 signals:
     /**

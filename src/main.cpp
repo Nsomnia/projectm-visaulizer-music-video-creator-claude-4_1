@@ -31,8 +31,9 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationVersion("1.0.0");
     
     try {
-        // Initialize core application
+        // Initialize core application and load config
         auto app = std::make_unique<NeonWave::Core::Application>();
+        app->initialize();
         
         // Create and show main window
         auto mainWindow = std::make_unique<NeonWave::GUI::MainWindow>();

@@ -285,4 +285,79 @@ void ProjectMWidget::setPresetLocked(bool locked) {
     }
 }
 
+void ProjectMWidget::setFPS(int fps) {
+    if (pImpl->projectM) projectm_set_fps(pImpl->projectM, fps);
+}
+
+void ProjectMWidget::setMeshSize(int x, int y) {
+    if (pImpl->projectM) projectm_set_mesh_size(pImpl->projectM, x, y);
+}
+
+void ProjectMWidget::setAspectCorrection(bool enabled) {
+    if (pImpl->projectM) projectm_set_aspect_correction(pImpl->projectM, enabled);
+}
+
+void ProjectMWidget::setBeatSensitivity(float sensitivity) {
+    if (pImpl->projectM) projectm_set_beat_sensitivity(pImpl->projectM, sensitivity);
+}
+
+void ProjectMWidget::setHardCut(bool enabled, double durationSeconds) {
+    if (pImpl->projectM) {
+        projectm_set_hard_cut_enabled(pImpl->projectM, enabled);
+        projectm_set_hard_cut_duration(pImpl->projectM, durationSeconds);
+    }
+}
+
+void ProjectMWidget::setSoftCutDuration(double durationSeconds) {
+    if (pImpl->projectM) projectm_set_soft_cut_duration(pImpl->projectM, durationSeconds);
+}
+
+void ProjectMWidget::setPresetDuration(double seconds) {
+    if (pImpl->projectM) projectm_set_preset_duration(pImpl->projectM, seconds);
+}
+
+void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const std::string& textureDir) {
+    if (!pImpl->projectM) return;
+    // Update textures search paths
+    std::string texturePath = textureDir;
+    if (texturePath.empty()) {
+        texturePath = "/usr/share/projectM/textures";
+#ifdef PROJECTM_DEFAULT_TEXTURES_DIR
+        if (!std::filesystem::exists(texturePath)) texturePath = PROJECTM_DEFAULT_TEXTURES_DIR;
+#else
+        if (!std::filesystem::exists(texturePath)) texturePath = "./external/projectm/textures";
+#endif
+    }
+    const char* texturePaths[] = { texturePath.c_str() };
+    projectm_set_texture_search_paths(pImpl->projectM, texturePaths, 1);
+
+    // Rebuild playlist from new preset directory if provided
+    if (pImpl->playlist) {
+        projectm_playlist_destroy(pImpl->playlist);
+        pImpl->playlist = nullptr;
+    }
+    pImpl->playlist = projectm_playlist_create(pImpl->projectM);
+    if (!pImpl->playlist) return;
+
+    std::string presetPath = presetDir;
+    if (presetPath.empty()) {
+        presetPath = "/usr/share/projectM/presets";
+#ifdef PROJECTM_DEFAULT_PRESETS_DIR
+        if (!std::filesystem::exists(presetPath)) presetPath = PROJECTM_DEFAULT_PRESETS_DIR;
+#else
+        if (!std::filesystem::exists(presetPath)) presetPath = "./external/projectm/presets";
+#endif
+    }
+    if (std::filesystem::exists(presetPath)) {
+        for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
+            if (entry.path().extension() == ".milk") {
+                projectm_playlist_add_preset(pImpl->playlist, entry.path().string().c_str(), true);
+            }
+        }
+        if (projectm_playlist_size(pImpl->playlist) > 0) {
+            projectm_playlist_set_position(pImpl->playlist, 0, false);
+        }
+    }
+}
+
 } // namespace NeonWave::GUI
