@@ -1,6 +1,6 @@
     /**
- * @file PlaylistWidget.cpp
- * @brief Implementation of playlist management widget
+ * @file AudioPlaylistWidget.cpp
+ * @brief Implementation of audio playlist management widget
  */
 
 #include "PlaylistWidget.h"
@@ -15,19 +15,19 @@
 
 namespace NeonWave::GUI {
 
-PlaylistWidget::PlaylistWidget(QWidget* parent)
+AudioPlaylistWidget::AudioPlaylistWidget(QWidget* parent)
     : QWidget(parent)
     , m_currentTrackIndex(-1) {
     setupUI();
 }
 
-PlaylistWidget::~PlaylistWidget() = default;
+AudioPlaylistWidget::~AudioPlaylistWidget() = default;
 
-void PlaylistWidget::setupUI() {
+void AudioPlaylistWidget::setupUI() {
     auto* layout = new QVBoxLayout(this);
     
     // Header
-    auto* header = new QLabel("Playlist");
+    auto* header = new QLabel("Audio Playlist");
     header->setStyleSheet("QLabel { font-weight: bold; padding: 5px; }");
     layout->addWidget(header);
     
@@ -43,15 +43,15 @@ void PlaylistWidget::setupUI() {
     
     // Connect signals
     connect(m_listWidget, &QListWidget::itemDoubleClicked,
-            this, &PlaylistWidget::onItemDoubleClicked);
+            this, &AudioPlaylistWidget::onItemDoubleClicked);
     
     connect(m_listWidget, &QListWidget::customContextMenuRequested,
-            this, &PlaylistWidget::showContextMenu);
+            this, &AudioPlaylistWidget::showContextMenu);
     
     layout->addWidget(m_listWidget);
 }
 
-void PlaylistWidget::addFiles(const QStringList& files) {
+void AudioPlaylistWidget::addFiles(const QStringList& files) {
     for (const QString& file : files) {
         if (QFileInfo::exists(file)) {
             QString trackName = extractTrackName(file);
@@ -62,20 +62,20 @@ void PlaylistWidget::addFiles(const QStringList& files) {
         }
     }
     
-    emit playlistChanged();
+    emit audioPlaylistChanged();
 }
 
-void PlaylistWidget::clearPlaylist() {
+void AudioPlaylistWidget::clearPlaylist() {
     m_listWidget->clear();
     m_currentTrackIndex = -1;
-    emit playlistChanged();
+    emit audioPlaylistChanged();
 }
 
-int PlaylistWidget::getCurrentTrackIndex() const {
+int AudioPlaylistWidget::getCurrentTrackIndex() const {
     return m_currentTrackIndex;
 }
 
-void PlaylistWidget::setCurrentTrackIndex(int index) {
+void AudioPlaylistWidget::setCurrentTrackIndex(int index) {
     // Clear previous highlighting
     for (int i = 0; i < m_listWidget->count(); ++i) {
         auto* item = m_listWidget->item(i);
@@ -96,54 +96,54 @@ void PlaylistWidget::setCurrentTrackIndex(int index) {
     }
 }
 
-int PlaylistWidget::getTrackCount() const {
+int AudioPlaylistWidget::getTrackCount() const {
     return m_listWidget->count();
 }
 
-QString PlaylistWidget::getTrackPath(int index) const {
+QString AudioPlaylistWidget::getTrackPath(int index) const {
     if (index >= 0 && index < m_listWidget->count()) {
         return m_listWidget->item(index)->data(Qt::UserRole).toString();
     }
     return QString();
 }
 
-void PlaylistWidget::onItemDoubleClicked(QListWidgetItem* item) {
+void AudioPlaylistWidget::onItemDoubleClicked(QListWidgetItem* item) {
     int index = m_listWidget->row(item);
     setCurrentTrackIndex(index);
     emit trackActivated(index);
 }
 
-void PlaylistWidget::showContextMenu(const QPoint& pos) {
+void AudioPlaylistWidget::showContextMenu(const QPoint& pos) {
     QMenu menu(this);
     
     QAction* removeAction = menu.addAction("Remove");
     connect(removeAction, &QAction::triggered,
-            this, &PlaylistWidget::removeSelectedTracks);
+            this, &AudioPlaylistWidget::removeSelectedTracks);
     
     menu.addSeparator();
     
     QAction* clearAction = menu.addAction("Clear All");
     connect(clearAction, &QAction::triggered,
-            this, &PlaylistWidget::clearPlaylist);
+            this, &AudioPlaylistWidget::clearPlaylist);
     
     menu.exec(m_listWidget->mapToGlobal(pos));
 }
 
-void PlaylistWidget::removeSelectedTracks() {
+void AudioPlaylistWidget::removeSelectedTracks() {
     auto selectedItems = m_listWidget->selectedItems();
     for (auto* item : selectedItems) {
         delete item;
     }
-    emit playlistChanged();
+    emit audioPlaylistChanged();
 }
 
-void PlaylistWidget::dragEnterEvent(QDragEnterEvent* event) {
+void AudioPlaylistWidget::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
     }
 }
 
-void PlaylistWidget::dropEvent(QDropEvent* event) {
+void AudioPlaylistWidget::dropEvent(QDropEvent* event) {
     QStringList files;
     for (const QUrl& url : event->mimeData()->urls()) {
         if (url.isLocalFile()) {
@@ -157,7 +157,7 @@ void PlaylistWidget::dropEvent(QDropEvent* event) {
     }
 }
 
-QString PlaylistWidget::extractTrackName(const QString& filePath) const {
+QString AudioPlaylistWidget::extractTrackName(const QString& filePath) const {
     QFileInfo info(filePath);
     return info.fileName();
 }

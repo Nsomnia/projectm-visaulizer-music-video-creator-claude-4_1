@@ -1,6 +1,6 @@
 /**
- * @file PlaylistWidget.h
- * @brief Playlist management widget
+ * @file AudioPlaylistWidget.h
+ * @brief Audio playlist management widget
  */
 
 #pragma once
@@ -17,8 +17,8 @@ QT_END_NAMESPACE
 namespace NeonWave::GUI {
 
 /**
- * @class PlaylistWidget
- * @brief Widget for managing audio file playlist
+ * @class AudioPlaylistWidget
+ * @brief Widget for managing audio track playlist
  * 
  * Features:
  * - Drag and drop support
@@ -26,12 +26,12 @@ namespace NeonWave::GUI {
  * - Current track highlighting
  * - Context menu for item operations
  */
-class PlaylistWidget : public QWidget {
+class AudioPlaylistWidget : public QWidget {
     Q_OBJECT
     
 public:
-    explicit PlaylistWidget(QWidget* parent = nullptr);
-    ~PlaylistWidget();
+    explicit AudioPlaylistWidget(QWidget* parent = nullptr);
+    ~AudioPlaylistWidget();
     
     /**
      * @brief Add files to playlist
@@ -79,7 +79,7 @@ signals:
     /**
      * @brief Emitted when playlist changes
      */
-    void playlistChanged();
+    void audioPlaylistChanged();
     
 private slots:
     /**

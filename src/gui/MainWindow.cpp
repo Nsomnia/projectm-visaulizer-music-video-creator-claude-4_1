@@ -182,12 +182,12 @@ void MainWindow::setupCentralWidget() {
     
     leftLayout->addWidget(presetBar);
     
-    // Right panel - Playlist
-    m_playlist = new PlaylistWidget(this);
+    // Right panel - Audio playlist
+    m_audioPlaylist = new AudioPlaylistWidget(this);
     
     // Add panels to splitter
     splitter->addWidget(leftPanel);
-    splitter->addWidget(m_playlist);
+    splitter->addWidget(m_audioPlaylist);
     splitter->setStretchFactor(0, 3); // Visualizer gets 3/4 of space
     splitter->setStretchFactor(1, 1); // Playlist gets 1/4
     
@@ -322,8 +322,8 @@ void MainWindow::onAddFilesClicked() {
     );
     
     if (!files.isEmpty()) {
-        // Add files to playlist
-        m_playlist->addFiles(files);
+        // Add files to audio playlist
+        m_audioPlaylist->addFiles(files);
         statusBar()->showMessage(QString("Added %1 files").arg(files.size()));
     }
 }

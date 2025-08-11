@@ -20,7 +20,7 @@ QT_END_NAMESPACE
 namespace NeonWave::GUI {
 
 class ProjectMWidget;
-class PlaylistWidget;
+class AudioPlaylistWidget;
 
 /**
  * @class MainWindow
@@ -139,7 +139,7 @@ private:
     
     // UI Elements
     ProjectMWidget* m_visualizer;
-    PlaylistWidget* m_playlist;
+    AudioPlaylistWidget* m_audioPlaylist;
     
     // Audio controls
     QPushButton* m_playPauseBtn;
