@@ -88,6 +88,10 @@ void SettingsDialog::buildUI() {
     m_presetLocked = new QCheckBox("Lock current preset (no auto switch)", visTab);
     visForm->addRow(m_presetLocked);
 
+    // Debug test signal
+    m_debugInjectSignal = new QCheckBox("Inject test PCM signal (debug)", visTab);
+    visForm->addRow(m_debugInjectSignal);
+
     // Directories
     m_presetDir = new QLineEdit(visTab);
     m_browsePresetDir = new QPushButton("Browse...", visTab);
@@ -141,6 +145,7 @@ void SettingsDialog::loadFromConfig() {
     m_softCut->setValue(v.softCutDuration);
     m_presetDuration->setValue(v.presetDuration);
     m_presetLocked->setChecked(v.presetLocked);
+    m_debugInjectSignal->setChecked(v.debugInjectTestSignal);
     m_presetDir->setText(QString::fromStdString(v.presetDirectory));
     m_textureDir->setText(QString::fromStdString(v.textureDirectory));
 }
@@ -158,6 +163,7 @@ void SettingsDialog::saveToConfig() {
     v.softCutDuration = m_softCut->value();
     v.presetDuration = m_presetDuration->value();
     v.presetLocked = m_presetLocked->isChecked();
+    v.debugInjectTestSignal = m_debugInjectSignal->isChecked();
     v.presetDirectory = m_presetDir->text().toStdString();
     v.textureDirectory = m_textureDir->text().toStdString();
     cfg.save();

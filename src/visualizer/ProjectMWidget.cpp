@@ -9,6 +9,7 @@
 #include <iostream>
 #include <filesystem>
 #include <cstdlib>
+#include "core/Config.h"
 
 // ProjectM headers
 #include <projectM-4/projectM.h>
@@ -102,7 +103,25 @@ void ProjectMWidget::paintGL() {
     if (pImpl->projectM && pImpl->initialized) {
         // Render ProjectM frame (guard against upstream exceptions)
         try {
-            projectm_opengl_render_frame(pImpl->projectM);
+            // Optional: inject a small test signal for debug visibility
+            const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
+            if (vcfg.debugInjectTestSignal) {
+                constexpr size_t frames = 512;
+                static float phase = 0.0f;
+                float buffer[frames * 2];
+                const float freq = 220.0f;
+                const float sampleRate = 48000.0f;
+                for (size_t i = 0; i < frames; ++i) {
+                    float s = 0.1f * sinf(2.0f * 3.14159265f * freq * (phase / sampleRate));
+                    buffer[2 * i] = s;
+                    buffer[2 * i + 1] = s;
+                    phase += 1.0f;
+                }
+                projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
+            }
+
+            // Render into the widget's default FBO
+            projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
         } catch (const std::exception& e) {
             std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
         }
@@ -112,7 +131,7 @@ void ProjectMWidget::paintGL() {
 bool ProjectMWidget::initializeProjectM() {
     std::cout << "[ProjectMWidget] Initializing ProjectM..." << std::endl;
     
-    // Create ProjectM instance (v4 API has no settings struct)
+    // Create ProjectM instance (v4 API)
     pImpl->projectM = projectm_create();
     if (!pImpl->projectM) {
         std::cerr << "[ProjectMWidget] Failed to create ProjectM instance!" << std::endl;
