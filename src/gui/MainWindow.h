@@ -7,6 +7,7 @@
 
 #include <QMainWindow>
 #include <memory>
+#include "core/audio/AudioEngine.h"
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -159,6 +160,7 @@ private:
     
     // State
     bool m_isPlaying;
+    std::unique_ptr<NeonWave::Core::Audio::AudioEngine> m_audioEngine;
     
     // Actions
     QAction* m_addFilesAction;

@@ -60,6 +60,9 @@ public:
      * @param samples Number of samples
      */
     void addAudioData(const float* pcmData, size_t samples);
+
+    // Convenience for mono/stereo interleaved float arrays
+    void addStereoPCM(const float* interleaved, size_t frames) { addAudioData(interleaved, frames * 2); }
     
     /**
      * @brief Set beats per minute (for beat detection)

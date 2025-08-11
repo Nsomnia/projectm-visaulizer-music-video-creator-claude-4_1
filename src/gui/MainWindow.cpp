@@ -39,6 +39,10 @@ MainWindow::MainWindow(QWidget *parent)
     setupMenuBar();
     setupToolBar();
     setupCentralWidget();
+    // Initialize audio engine
+    m_audioEngine = std::make_unique<NeonWave::Core::Audio::AudioEngine>(this);
+    connect(m_audioEngine.get(), &NeonWave::Core::Audio::AudioEngine::positionChanged, this,
+            [this](qint64 posMs, qint64 durMs){ updatePlaybackPosition(posMs/1000.0, durMs/1000.0); });
     
     // Set up status bar
     statusBar()->showMessage("Ready");
@@ -292,6 +296,7 @@ void MainWindow::createPresetControls() {
 
 void MainWindow::onPlayPauseToggled() {
     m_isPlaying = !m_isPlaying;
+    if (m_isPlaying) m_audioEngine->play(); else m_audioEngine->pause();
     emit playStateChanged(m_isPlaying);
     statusBar()->showMessage(m_isPlaying ? "Playing" : "Paused");
 }
@@ -300,16 +305,19 @@ void MainWindow::onStopClicked() {
     m_isPlaying = false;
     emit playStateChanged(false);
     m_seekSlider->setValue(0);
+    m_audioEngine->stop();
     statusBar()->showMessage("Stopped");
 }
 
 void MainWindow::onNextTrackClicked() {
     // Emit signal for audio engine to handle
+    m_audioEngine->next();
     statusBar()->showMessage("Next track");
 }
 
 void MainWindow::onPreviousTrackClicked() {
     // Emit signal for audio engine to handle
+    m_audioEngine->previous();
     statusBar()->showMessage("Previous track");
 }
 
@@ -322,8 +330,9 @@ void MainWindow::onAddFilesClicked() {
     );
     
     if (!files.isEmpty()) {
-        // Add files to audio playlist
+        // Add files to audio playlist and audio engine
         m_audioPlaylist->addFiles(files);
+        m_audioEngine->setPlaylist(files);
         statusBar()->showMessage(QString("Added %1 files").arg(files.size()));
     }
 }

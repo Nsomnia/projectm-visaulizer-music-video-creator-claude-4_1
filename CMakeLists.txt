@@ -14,7 +14,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # Find required packages
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL OpenGLWidgets Multimedia)
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -111,6 +111,7 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Widgets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
+    Qt6::Multimedia
     projectM-4
     projectM-4-playlist
     ${SDL2_LIBRARIES}
