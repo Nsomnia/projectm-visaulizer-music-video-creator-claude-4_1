@@ -44,6 +44,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_audioEngine.get(), &NeonWave::Core::Audio::AudioEngine::positionChanged, this,
             [this](qint64 posMs, qint64 durMs){ updatePlaybackPosition(posMs/1000.0, durMs/1000.0); });
     
+    m_audioEngine->setPCMCallback([this](const float* data, size_t samples) {
+        if (m_visualizer) {
+            m_visualizer->addAudioData(data, samples);
+        }
+    });
+    
     // Set up status bar
     statusBar()->showMessage("Ready");
     

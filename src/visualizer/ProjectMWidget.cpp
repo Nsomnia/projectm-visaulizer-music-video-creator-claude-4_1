@@ -79,7 +79,9 @@ void ProjectMWidget::initializeGL() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
     
     // Initialize ProjectM
     if (!initializeProjectM()) {
@@ -97,6 +99,80 @@ void ProjectMWidget::resizeGL(int w, int h) {
     }
 }
 
+//void ProjectMWidget::paintGL() {
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//    
+//    if (pImpl->projectM && pImpl->initialized) {
+//        // Render ProjectM frame (guard against upstream exceptions)
+//          try {
+//            // Optional: inject a small test signal for debug visibility
+//            const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
+//            if (vcfg.debugInjectTestSignal) {
+//                constexpr size_t frames = 512;
+//                static float phase = 0.0f;
+//                float buffer[frames * 2];
+//                const float freq = 220.0f;
+//                const float sampleRate = 48000.0f;
+//                for (size_t i = 0; i < frames; ++i) {
+//                    float s = 0.1f * sinf(2.0f * 3.14159265f * freq * (phase / sampleRate));
+//                    buffer[2 * i] = s;
+//                    buffer[2 * i + 1] = s;
+//                    phase += 1.0f;
+//                }
+//                projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
+//            }
+//
+//            // Manually flip the Y-axis to correct for coordinate system differences
+//            glMatrixMode(GL_PROJECTION);
+//            glPushMatrix();
+//            glLoadIdentity();
+//            glOrtho(0, width(), height(), 0, -1, 1); // Inverted Y-axis
+//            glMatrixMode(GL_MODELVIEW);
+//            glPushMatrix();
+//            glLoadIdentity();
+//
+//            // Render into the widget's default FBO
+//            projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
+//
+//            glMatrixMode(GL_PROJECTION);
+//            glPopMatrix();
+//            glMatrixMode(GL_MODELVIEW);
+//            glPopMatrix();
+//
+//        } catch (const std::exception& e) {
+//            std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
+//        }
+//    }
+//}
+//void ProjectMWidget::paintGL() {
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//    
+//    if (pImpl->projectM && pImpl->initialized) {
+//        try {
+//            // Optional: inject a small test signal for debug visibility
+//            const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
+//            if (vcfg.debugInjectTestSignal) {
+//                constexpr size_t frames = 512;
+//                static float phase = 0.0f;
+//                float buffer[frames * 2];
+//                const float freq = 220.0f;
+//                const float sampleRate = 48000.0f;
+//                for (size_t i = 0; i < frames; ++i) {
+//                    float s = 0.1f * sinf(2.0f * 3.14159265f * freq * (phase / sampleRate));
+//                    buffer[2 * i] = s;
+//                    buffer[2 * i + 1] = s;
+//                    phase += 1.0f;
+//                }
+//                projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
+//            }
+//            
+//            // Render into the widget's default FBO without modifying the projection matrix
+//            projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
+//        } catch (const std::exception& e) {
+//            std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
+//        }
+//    }
+//}
 void ProjectMWidget::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
@@ -120,13 +196,28 @@ void ProjectMWidget::paintGL() {
                 projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
             }
 
-            // Render into the widget's default FBO
+            // Let ProjectM handle its own projection; just render directly into widget's FBO
+            glClearColor(0.f, 0.f, 0.f, 1.f);
+
+            // DEBUG TEMPORARILY DISABLE BLENDING IN PROJECTM'S RENDER CALL
+            glDisable(GL_BLEND);
+            glClearColor(0.f, 0.f, 0.f, 1.f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
+            glEnable(GL_BLEND);
+
+            //projectm_opengl_render_frame_fbo(
+            //    pImpl->projectM,
+            //    static_cast<uint32_t>(defaultFramebufferObject())
+            //);
+
         } catch (const std::exception& e) {
             std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
         }
     }
 }
+
+
 
 bool ProjectMWidget::initializeProjectM() {
     std::cout << "[ProjectMWidget] Initializing ProjectM..." << std::endl;

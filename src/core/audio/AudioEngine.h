@@ -1,10 +1,13 @@
 #pragma once
 
 #include <QObject>
-#include <QAudioOutput>
 #include <QMediaPlayer>
+#include <QAudioBufferOutput>
 #include <QStringList>
 #include <memory>
+#include <functional>
+
+class QAudioBuffer;
 
 namespace NeonWave::Core::Audio {
 
@@ -21,7 +24,6 @@ public:
     void next();
     void previous();
 
-    // Connect ProjectM audio sink: emit pcm buffers to a callback
     using PCMCallback = std::function<void(const float* data, size_t samples)>;
     void setPCMCallback(PCMCallback cb);
 
@@ -32,15 +34,16 @@ signals:
 private slots:
     void onPositionChanged(qint64);
     void onMediaStatusChanged(QMediaPlayer::MediaStatus);
+    void onAudioBufferReceived(const QAudioBuffer& buffer);
 
 private:
     void loadCurrent();
 
     std::unique_ptr<QMediaPlayer> m_player;
-    std::unique_ptr<QAudioOutput> m_output;
+    std::unique_ptr<QAudioBufferOutput> m_audio_output;
     QStringList m_files;
     int m_index{ -1 };
     PCMCallback m_pcm;
 };
 
-} // namespace NeonWave::Core::Audio
+}

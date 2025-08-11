@@ -1,46 +1,71 @@
-# Prerequisites
-*.d
+# Build artifacts
+build/
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# External dependencies
+external/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Local environment variables
+.env
 
-# Linker files
-*.ilk
+# IDE-specific files
+.vscode/
+.idea/
 
-# Debugger Files
-*.pdb
+# macOS-specific files
+.DS_Store
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+# Windows-specific files
+Thumbs.db
 
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+# Vim swap files
+*.swp
+*.swo
 
 # Executables
-*.exe
-*.out
-*.app
+#neonwave
 
-# debug information files
-*.dwo
-# Created by venv; see https://docs.python.org/3/library/venv.html
+                                                                                                                       │
+# Prerequisites                                                                                                 │
+*.d                                                                                                             │
 
-# project dirs
-build/
-external/
+# Compiled Object files                                                                                         │
+*.slo                                                                                                           │
+*.lo                                                                                                            │
+*.o                                                                                                             │
+*.obj                                                                                                           │
+
+# Precompiled Headers                                                                                           │
+*.gch                                                                                                           │
+*.pch                                                                                                           │
+
+# Linker files                                                                                                  │
+*.ilk                                                                                                           │
+
+# Debugger Files                                                                                                │
+*.pdb                                                                                                           │
+
+# Dynamic libraries                                                                                    │
+*.so                                                                                                            │
+*.dylib                                                                                                         │
+*.dll                                                                                                           │
+
+# module files                                                                                          │
+*.mod                                                                                                           │
+*.smod                                                                                                          │
+
+# Compiled Static libraries                                                                                     │
+*.lai                                                                                                           │
+*.la                                                                                                            │
+*.a                                                                                                             │
+*.lib                                                                                                           │
+
+# Executables ════════════════════════════════════════════════
+*.exe                                                                                                           │
+*.out                                                                                                           │
+*.app                                                                                                           │
+
+# debug information files                                                                                       │
+*.dwo                                                                                                           │
+
+# Created by venv; see https://docs.python.org/3/library/venv.html                                              │
+venv/

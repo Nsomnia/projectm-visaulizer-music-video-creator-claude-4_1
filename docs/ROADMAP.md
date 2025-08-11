@@ -32,7 +32,7 @@ This document captures the near-term plan, feature backlog, testing strategy, an
 
 ### 1) ProjectM integration
 - v4 primary support (current)
-- v3 compatibility mode (optional)
+- v3 compatibility mode (optional. NOT IMPORTANT UNTIL ALL FEATURES DONE)
   - CMake option `NEONWAVE_PROJECTM_API=v4|v3`
   - Adapter layer: `ProjectMAdapter` wrapper with unified interface
   - Only compile headers and calls for selected API version

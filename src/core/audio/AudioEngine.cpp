@@ -1,19 +1,19 @@
-/**
- * @file AudioEngine.cpp
- */
-
 #include "AudioEngine.h"
+#include <QAudioBuffer>
 #include <QAudioFormat>
-#include <QIODevice>
-#include <QBuffer>
+#include <QDebug>
 
 namespace NeonWave::Core::Audio {
 
 AudioEngine::AudioEngine(QObject* parent)
     : QObject(parent)
     , m_player(std::make_unique<QMediaPlayer>())
-    , m_output(std::make_unique<QAudioOutput>()) {
-    m_player->setAudioOutput(m_output.get());
+    , m_audio_output(std::make_unique<QAudioBufferOutput>(this))
+{
+    m_player->setAudioBufferOutput(m_audio_output.get());
+
+    connect(m_audio_output.get(), &QAudioBufferOutput::audioBufferReceived,
+            this, &AudioEngine::onAudioBufferReceived);
 
     connect(m_player.get(), &QMediaPlayer::positionChanged,
             this, &AudioEngine::onPositionChanged);
@@ -57,7 +57,9 @@ void AudioEngine::previous() {
     play();
 }
 
-void AudioEngine::setPCMCallback(PCMCallback cb) { m_pcm = std::move(cb); }
+void AudioEngine::setPCMCallback(PCMCallback cb) {
+    m_pcm = std::move(cb);
+}
 
 void AudioEngine::onPositionChanged(qint64 pos) {
     emit positionChanged(pos, m_player->duration());
@@ -69,9 +71,20 @@ void AudioEngine::onMediaStatusChanged(QMediaPlayer::MediaStatus status) {
     }
 }
 
+void AudioEngine::onAudioBufferReceived(const QAudioBuffer& buffer) {
+    if (m_pcm && buffer.isValid()) {
+        const QAudioFormat format = buffer.format();
+        if (format.sampleFormat() == QAudioFormat::Float) {
+            const int channels = format.channelCount();
+            const int samples = buffer.sampleCount();
+            m_pcm(buffer.constData<float>(), samples * channels);
+        }
+    }
+}
+
 void AudioEngine::loadCurrent() {
     if (m_index < 0 || m_index >= m_files.size()) return;
     m_player->setSource(QUrl::fromLocalFile(m_files[m_index]));
 }
 
-} // namespace NeonWave::Core::Audio
+}
