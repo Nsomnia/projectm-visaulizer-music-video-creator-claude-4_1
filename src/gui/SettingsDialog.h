@@ -42,6 +42,7 @@ private:
     QDoubleSpinBox* m_presetDuration{};
     QCheckBox* m_presetLocked{};
     QCheckBox* m_debugInjectSignal{};
+    QCheckBox* m_loadRandomPresetOnStartup{};
     QLineEdit* m_presetDir{};
     QPushButton* m_browsePresetDir{};
     QLineEdit* m_textureDir{};

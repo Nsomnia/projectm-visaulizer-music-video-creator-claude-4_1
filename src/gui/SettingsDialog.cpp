@@ -88,6 +88,9 @@ void SettingsDialog::buildUI() {
     m_presetLocked = new QCheckBox("Lock current preset (no auto switch)", visTab);
     visForm->addRow(m_presetLocked);
 
+    m_loadRandomPresetOnStartup = new QCheckBox("Load random preset on startup", visTab);
+    visForm->addRow(m_loadRandomPresetOnStartup);
+
     // Debug test signal
     m_debugInjectSignal = new QCheckBox("Inject test PCM signal (debug)", visTab);
     visForm->addRow(m_debugInjectSignal);
@@ -146,6 +149,7 @@ void SettingsDialog::loadFromConfig() {
     m_presetDuration->setValue(v.presetDuration);
     m_presetLocked->setChecked(v.presetLocked);
     m_debugInjectSignal->setChecked(v.debugInjectTestSignal);
+    m_loadRandomPresetOnStartup->setChecked(v.loadRandomPresetOnStartup);
     m_presetDir->setText(QString::fromStdString(v.presetDirectory));
     m_textureDir->setText(QString::fromStdString(v.textureDirectory));
 }
@@ -164,6 +168,7 @@ void SettingsDialog::saveToConfig() {
     v.presetDuration = m_presetDuration->value();
     v.presetLocked = m_presetLocked->isChecked();
     v.debugInjectTestSignal = m_debugInjectSignal->isChecked();
+    v.loadRandomPresetOnStartup = m_loadRandomPresetOnStartup->isChecked();
     v.presetDirectory = m_presetDir->text().toStdString();
     v.textureDirectory = m_textureDir->text().toStdString();
     cfg.save();

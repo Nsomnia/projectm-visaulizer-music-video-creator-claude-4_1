@@ -60,6 +60,7 @@ void Config::load() {
         if (v.contains("preset_directory")) m_visualizer.presetDirectory = v.value("preset_directory").toString().toStdString();
         if (v.contains("texture_directory")) m_visualizer.textureDirectory = v.value("texture_directory").toString().toStdString();
         if (v.contains("debug_inject_test_signal")) m_visualizer.debugInjectTestSignal = v.value("debug_inject_test_signal").toBool(false);
+        if (v.contains("load_random_on_startup")) m_visualizer.loadRandomPresetOnStartup = v.value("load_random_on_startup").toBool(false);
     }
 }
 
@@ -86,6 +87,7 @@ void Config::save() const {
     v.insert("preset_directory", QString::fromStdString(m_visualizer.presetDirectory));
     v.insert("texture_directory", QString::fromStdString(m_visualizer.textureDirectory));
     v.insert("debug_inject_test_signal", m_visualizer.debugInjectTestSignal);
+    v.insert("load_random_on_startup", m_visualizer.loadRandomPresetOnStartup);
     root.insert("visualizer", v);
 
     const auto path = settingsFilePath();

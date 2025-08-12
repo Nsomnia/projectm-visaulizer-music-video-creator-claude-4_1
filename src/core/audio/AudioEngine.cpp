@@ -68,9 +68,7 @@ void AudioEngine::previous() {
     play();
 }
 
-void AudioEngine::setPCMCallback(PCMCallback cb) {
-    m_pcm = std::move(cb);
-}
+
 
 void AudioEngine::onPositionChanged(qint64 pos) {
     emit positionChanged(pos, m_player->duration());
@@ -98,14 +96,11 @@ void AudioEngine::onAudioBufferReceived(const QAudioBuffer& buffer) {
         m_sink_device->write(buffer.constData<char>(), buffer.byteCount());
     }
 
-    // Send to visualizer
-    if (m_pcm) {
-        const QAudioFormat format = buffer.format();
-        if (format.sampleFormat() == QAudioFormat::Float) {
-            const int channels = format.channelCount();
-            const int samples = buffer.sampleCount();
-            m_pcm(buffer.constData<float>(), samples * channels);
-        }
+    // Send to visualizer via signal
+    const QAudioFormat format = buffer.format();
+    if (format.sampleFormat() == QAudioFormat::Float) {
+        QByteArray data(buffer.constData<char>(), buffer.byteCount());
+        emit pcmDataAvailable(data, buffer.sampleCount(), format.channelCount());
     }
 }
 

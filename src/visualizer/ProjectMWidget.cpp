@@ -31,6 +31,7 @@ public:
     bool initialized = false;
     bool presetLocked = false;
     std::string currentPresetName;
+    std::recursive_mutex projectm_mutex;
     
     ~Impl() {
         cleanup();
@@ -79,8 +80,7 @@ void ProjectMWidget::initializeGL() {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     
     // Initialize ProjectM
@@ -95,6 +95,7 @@ void ProjectMWidget::initializeGL() {
 
 void ProjectMWidget::resizeGL(int w, int h) {
     if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         projectm_set_window_size(pImpl->projectM, w, h);
     }
 }
@@ -105,6 +106,7 @@ void ProjectMWidget::paintGL() {
     if (pImpl->projectM && pImpl->initialized) {
         // Render ProjectM frame (guard against upstream exceptions)
         try {
+            std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
             // Optional: inject a small test signal for debug visibility
             const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
             if (vcfg.debugInjectTestSignal) {
@@ -122,20 +124,7 @@ void ProjectMWidget::paintGL() {
                 projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
             }
 
-            // Let ProjectM handle its own projection; just render directly into widget's FBO
-            glClearColor(0.f, 0.f, 0.f, 1.f);
-
-            // DEBUG TEMPORARILY DISABLE BLENDING IN PROJECTM'S RENDER CALL
-            glDisable(GL_BLEND);
-            glClearColor(0.f, 0.f, 0.f, 1.f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
-            glEnable(GL_BLEND);
-
-            //projectm_opengl_render_frame_fbo(
-            //    pImpl->projectM,
-            //    static_cast<uint32_t>(defaultFramebufferObject())
-            //);
 
         } catch (const std::exception& e) {
             std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
@@ -155,6 +144,8 @@ bool ProjectMWidget::initializeProjectM() {
         return false;
     }
 
+    std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+
     // Apply parameters via API
     projectm_set_window_size(pImpl->projectM, static_cast<size_t>(width()), static_cast<size_t>(height()));
     projectm_set_fps(pImpl->projectM, 60);
@@ -165,6 +156,9 @@ bool ProjectMWidget::initializeProjectM() {
     projectm_set_hard_cut_enabled(pImpl->projectM, true);
     projectm_set_soft_cut_duration(pImpl->projectM, 10.0);
     projectm_set_preset_duration(pImpl->projectM, 30.0);
+
+    // Register preset switch callback
+    projectm_set_preset_switch_requested_event_callback(pImpl->projectM, presetSwitchedCallback, this);
 
     // Texture search paths
     std::string texturePath = "/usr/share/projectM/textures";
@@ -193,15 +187,20 @@ bool ProjectMWidget::initializeProjectM() {
 #endif
     size_t presetCount = 0;
     std::vector<std::string> discoveredPresets;
+    std::cout << "[ProjectMWidget] Searching for presets in: " << presetPath << std::endl;
     if (std::filesystem::exists(presetPath)) {
-        for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
-            if (entry.path().extension() == ".milk") {
-                discoveredPresets.emplace_back(entry.path().string());
+        try {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(presetPath)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".milk") {
+                    discoveredPresets.emplace_back(entry.path().string());
+                }
             }
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "[ProjectMWidget] Filesystem error while scanning presets: " << e.what() << std::endl;
         }
         presetCount = discoveredPresets.size();
     }
-    std::cout << "[ProjectMWidget] Loaded " << presetCount << " presets" << std::endl;
+    std::cout << "[ProjectMWidget] Found " << presetCount << " presets" << std::endl;
     // Do not auto-switch; keep idle preset initially for debug visibility
     if (presetCount > 0) {
         pImpl->playlist = projectm_playlist_create(pImpl->projectM);
@@ -214,16 +213,22 @@ bool ProjectMWidget::initializeProjectM() {
         }
     }
     
-    // Load default idle preset for initial visualization when no audio is playing
-    projectm_load_preset_file(pImpl->projectM, "idle://", true);
-    pImpl->currentPresetName = "Idle";
-    emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
+    const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
+    if (vcfg.loadRandomPresetOnStartup && presetCount > 0) {
+        randomPreset();
+    } else {
+        // Load default idle preset for initial visualization when no audio is playing
+        projectm_load_preset_file(pImpl->projectM, "idle://", true);
+        pImpl->currentPresetName = "Idle";
+        emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
+    }
     
     pImpl->initialized = true;
     return true;
 }
 
 void ProjectMWidget::cleanupProjectM() {
+    std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
     if (pImpl->renderTimer) {
         pImpl->renderTimer->stop();
         delete pImpl->renderTimer;
@@ -247,6 +252,7 @@ bool ProjectMWidget::loadPreset(const std::string& presetPath) {
         return false;
     }
     
+    std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
     projectm_load_preset_file(pImpl->projectM, presetPath.c_str(), true);
     pImpl->currentPresetName = std::filesystem::path(presetPath).stem();
     emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
@@ -255,43 +261,28 @@ bool ProjectMWidget::loadPreset(const std::string& presetPath) {
 
 void ProjectMWidget::nextPreset() {
     if (pImpl->playlist && !pImpl->presetLocked) {
-        projectm_playlist_play_next(pImpl->playlist, true);
-        // Update current preset name
-        size_t pos = projectm_playlist_get_position(pImpl->playlist);
-        const char* name = projectm_playlist_item(pImpl->playlist, pos);
-        if (name) {
-            pImpl->currentPresetName = std::filesystem::path(name).stem();
-            emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
-        }
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        unsigned int new_index = projectm_playlist_play_next(pImpl->playlist, true);
+        onPresetSwitched(new_index);
     }
 }
 
 void ProjectMWidget::previousPreset() {
     if (pImpl->playlist && !pImpl->presetLocked) {
-        projectm_playlist_play_previous(pImpl->playlist, true);
-        // Update current preset name
-        size_t pos = projectm_playlist_get_position(pImpl->playlist);
-        const char* name = projectm_playlist_item(pImpl->playlist, pos);
-        if (name) {
-            pImpl->currentPresetName = std::filesystem::path(name).stem();
-            emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
-        }
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        unsigned int new_index = projectm_playlist_play_previous(pImpl->playlist, true);
+        onPresetSwitched(new_index);
     }
 }
 
 void ProjectMWidget::randomPreset() {
     if (pImpl->playlist && !pImpl->presetLocked) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         size_t count = projectm_playlist_size(pImpl->playlist);
         if (count > 0) {
             size_t randomPos = rand() % count;
-            projectm_playlist_set_position(pImpl->playlist, randomPos, true);
-            projectm_playlist_play_next(pImpl->playlist, true);
-            
-            const char* name = projectm_playlist_item(pImpl->playlist, randomPos);
-            if (name) {
-                pImpl->currentPresetName = std::filesystem::path(name).stem();
-                emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
-            }
+            unsigned int new_index = projectm_playlist_set_position(pImpl->playlist, randomPos, true);
+            onPresetSwitched(new_index);
         }
     }
 }
@@ -300,19 +291,20 @@ std::string ProjectMWidget::getCurrentPresetName() const {
     return pImpl->currentPresetName;
 }
 
-void ProjectMWidget::addAudioData(const float* pcmData, size_t samples) {
-    if (pImpl->projectM && pImpl->initialized) {
-        // ProjectM expects stereo interleaved float samples.
-        // The `samples` argument is the total number of float values.
-        // For stereo data, the number of frames is half the number of samples.
-        size_t frames = samples / 2;
-        projectm_pcm_add_float(pImpl->projectM, pcmData, frames, 
-                               PROJECTM_STEREO);
+void ProjectMWidget::addAudioData(const QByteArray& data, int sampleCount, int channelCount) {
+    if (pImpl->projectM && pImpl->initialized && channelCount > 0) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        const float* pcmData = reinterpret_cast<const float*>(data.constData());
+        size_t frames = sampleCount;
+        auto channels = static_cast<projectm_channels>(channelCount);
+        projectm_pcm_add_float(pImpl->projectM, pcmData, frames, channels);
     }
 }
 
+
 void ProjectMWidget::setBPM(float bpm) {
     if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         // ProjectM uses this for beat detection
         // Note: This is a simplified approach
         float beatSensitivity = bpm / 120.0f; // Normalize around 120 BPM
@@ -323,43 +315,64 @@ void ProjectMWidget::setBPM(float bpm) {
 void ProjectMWidget::setPresetLocked(bool locked) {
     pImpl->presetLocked = locked;
     if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         projectm_set_preset_locked(pImpl->projectM, locked);
     }
 }
 
 void ProjectMWidget::setFPS(int fps) {
-    if (pImpl->projectM) projectm_set_fps(pImpl->projectM, fps);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_fps(pImpl->projectM, fps);
+    }
 }
 
 void ProjectMWidget::setMeshSize(int x, int y) {
-    if (pImpl->projectM) projectm_set_mesh_size(pImpl->projectM, x, y);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_mesh_size(pImpl->projectM, x, y);
+    }
 }
 
 void ProjectMWidget::setAspectCorrection(bool enabled) {
-    if (pImpl->projectM) projectm_set_aspect_correction(pImpl->projectM, enabled);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_aspect_correction(pImpl->projectM, enabled);
+    }
 }
 
 void ProjectMWidget::setBeatSensitivity(float sensitivity) {
-    if (pImpl->projectM) projectm_set_beat_sensitivity(pImpl->projectM, sensitivity);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_beat_sensitivity(pImpl->projectM, sensitivity);
+    }
 }
 
 void ProjectMWidget::setHardCut(bool enabled, double durationSeconds) {
     if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         projectm_set_hard_cut_enabled(pImpl->projectM, enabled);
         projectm_set_hard_cut_duration(pImpl->projectM, durationSeconds);
     }
 }
 
 void ProjectMWidget::setSoftCutDuration(double durationSeconds) {
-    if (pImpl->projectM) projectm_set_soft_cut_duration(pImpl->projectM, durationSeconds);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_soft_cut_duration(pImpl->projectM, durationSeconds);
+    }
 }
 
 void ProjectMWidget::setPresetDuration(double seconds) {
-    if (pImpl->projectM) projectm_set_preset_duration(pImpl->projectM, seconds);
+    if (pImpl->projectM) {
+        std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+        projectm_set_preset_duration(pImpl->projectM, seconds);
+    }
 }
 
 void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const std::string& textureDir) {
     if (!pImpl->projectM) return;
+    std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
     // Update textures search paths
     std::string texturePath = textureDir;
     if (texturePath.empty()) {
@@ -370,6 +383,7 @@ void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const
         if (!std::filesystem::exists(texturePath)) texturePath = "./external/projectm/textures";
 #endif
     }
+    std::cout << "[ProjectMWidget] Setting texture search path to: " << texturePath << std::endl;
     const char* texturePaths[] = { texturePath.c_str() };
     projectm_set_texture_search_paths(pImpl->projectM, texturePaths, 1);
 
@@ -390,14 +404,20 @@ void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const
     }
     size_t count = 0;
     std::vector<std::string> newPresets;
+    std::cout << "[ProjectMWidget] Rebuilding playlist from: " << presetPath << std::endl;
     if (std::filesystem::exists(presetPath)) {
-        for (const auto& entry : std::filesystem::directory_iterator(presetPath)) {
-            if (entry.path().extension() == ".milk") {
-                newPresets.emplace_back(entry.path().string());
+        try {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(presetPath)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".milk") {
+                    newPresets.emplace_back(entry.path().string());
+                }
             }
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "[ProjectMWidget] Filesystem error while scanning presets: " << e.what() << std::endl;
         }
         count = newPresets.size();
     }
+    std::cout << "[ProjectMWidget] Found " << count << " presets" << std::endl;
     if (count > 0) {
         pImpl->playlist = projectm_playlist_create(pImpl->projectM);
         if (!pImpl->playlist) return;
@@ -409,6 +429,36 @@ void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const
     } else {
         // leave playlist as nullptr and keep idle preset
         projectm_set_preset_locked(pImpl->projectM, true);
+    }
+}
+
+void ProjectMWidget::presetSwitchedCallback(bool /*isHardCut*/, void* context)
+{
+    // This is a static C-style callback, so we use the context pointer
+    // to call a member function on the correct class instance.
+    if (context) {
+        auto* that = static_cast<ProjectMWidget*>(context);
+        // The callback can be called from a different thread, so we need to
+        // queue the call to the main thread to safely update the UI.
+        unsigned int index = projectm_playlist_get_position(that->pImpl->playlist);
+        QMetaObject::invokeMethod(that, [that, index]() {
+            that->onPresetSwitched(index);
+        }, Qt::QueuedConnection);
+    }
+}
+
+void ProjectMWidget::onPresetSwitched(unsigned int index)
+{
+    std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
+    if (pImpl->playlist) {
+        char* name_ptr = projectm_playlist_item(pImpl->playlist, index);
+        if (name_ptr) {
+            // projectM returns a pointer to its internal string. We must copy it.
+            std::string preset_path = name_ptr;
+            projectm_playlist_free_string(name_ptr);
+            pImpl->currentPresetName = std::filesystem::path(preset_path).stem().string();
+            emit presetChanged(QString::fromStdString(pImpl->currentPresetName));
+        }
     }
 }
 

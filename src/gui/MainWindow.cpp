@@ -51,9 +51,8 @@ MainWindow::MainWindow(QWidget *parent)
     
     // Now that visualizer exists, connect audio and apply settings
     if (m_visualizer) {
-        m_audioEngine->setPCMCallback([this](const float* data, size_t samples) {
-            m_visualizer->addAudioData(data, samples);
-        });
+        connect(m_audioEngine.get(), &Core::Audio::AudioEngine::pcmDataAvailable,
+                m_visualizer, &ProjectMWidget::addAudioData);
 
         const auto& v = cfg.visualizer();
         m_visualizer->setFPS(v.fps);

@@ -20,6 +20,7 @@ struct VisualizerConfig {
     std::string presetDirectory;   // empty => use defaults
     std::string textureDirectory;  // empty => use defaults
     bool debugInjectTestSignal = false; // developer toggle to verify rendering path
+    bool loadRandomPresetOnStartup = false;
 };
 
 struct AudioConfig {

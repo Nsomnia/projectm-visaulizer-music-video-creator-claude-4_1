@@ -9,6 +9,7 @@
 #include <QOpenGLFunctions>
 #include <memory>
 #include <string>
+#include <mutex>
 
 namespace NeonWave::GUI {
 
@@ -54,15 +55,15 @@ public:
      */
     std::string getCurrentPresetName() const;
     
+    public slots:
     /**
-     * @brief Feed audio data to visualizer
-     * @param pcmData Audio samples
-     * @param samples Number of samples
+     * @brief Add audio data to ProjectM for visualization
+     * @param pcmData Raw float PCM data
+     * @param samples Total number of samples (frames * channels)
      */
-    void addAudioData(const float* pcmData, size_t samples);
+    void addAudioData(const QByteArray& data, int sampleCount, int channelCount);
 
-    // Convenience for mono/stereo interleaved float arrays
-    void addStereoPCM(const float* interleaved, size_t frames) { addAudioData(interleaved, frames * 2); }
+    
     
     /**
      * @brief Set beats per minute (for beat detection)
@@ -100,6 +101,10 @@ protected:
     void paintGL() override;
     
 private:
+    // projectM callback
+    static void presetSwitchedCallback(bool isHardCut, unsigned int index, void* context);
+    void onPresetSwitched(unsigned int index);
+
     class Impl;
     std::unique_ptr<Impl> pImpl;
     

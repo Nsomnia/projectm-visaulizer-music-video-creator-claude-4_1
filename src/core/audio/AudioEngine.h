@@ -25,10 +25,8 @@ public:
     void next();
     void previous();
 
-    using PCMCallback = std::function<void(const float* data, size_t samples)>;
-    void setPCMCallback(PCMCallback cb);
-
 signals:
+    void pcmDataAvailable(const QByteArray& data, int sampleCount, int channelCount);
     void positionChanged(qint64 positionMs, qint64 durationMs);
     void stateChanged(QMediaPlayer::PlaybackState state);
 
@@ -46,7 +44,6 @@ private:
     QIODevice* m_sink_device = nullptr;
     QStringList m_files;
     int m_index{ -1 };
-    PCMCallback m_pcm;
 };
 
 }
