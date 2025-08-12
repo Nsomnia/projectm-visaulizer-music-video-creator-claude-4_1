@@ -6,6 +6,7 @@
 #include "ProjectMWidget.h"
 #include <QTimer>
 #include <QOpenGLContext>
+#include <QOpenGLShaderProgram>
 #include <iostream>
 #include <filesystem>
 #include <cstdlib>
@@ -19,10 +20,6 @@
 
 namespace NeonWave::GUI {
 
-/**
- * @class ProjectMWidget::Impl
- * @brief Private implementation containing ProjectM instance
- */
 class ProjectMWidget::Impl {
 public:
     projectm_handle projectM = nullptr;
@@ -51,21 +48,34 @@ public:
 
 ProjectMWidget::ProjectMWidget(QWidget* parent)
     : QOpenGLWidget(parent)
-    , pImpl(std::make_unique<Impl>()) {
+    , pImpl(std::make_unique<Impl>())
+    , m_fboRenderer(std::make_unique<FboRenderer>())
+    , m_videoExporter(std::make_unique<VideoExporter>())
+    , m_textRenderer(std::make_unique<TextRenderer>()) {
     
-    // Set OpenGL format
     QSurfaceFormat format;
     format.setVersion(3, 3);
-    // Some drivers/presets assume compatibility profile
-    format.setProfile(QSurfaceFormat::CompatibilityProfile);
+    format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
-    format.setSamples(4); // Enable multisampling
+    format.setSamples(4);
     setFormat(format);
 }
 
 ProjectMWidget::~ProjectMWidget() {
     makeCurrent();
+    if (m_shaderProgram) {
+        delete m_shaderProgram;
+    }
+    if (m_quadVao) {
+        glDeleteVertexArrays(1, &m_quadVao);
+    }
+    if (m_quadVbo) {
+        glDeleteBuffers(1, &m_quadVbo);
+    }
+    if (m_quadEbo) {
+        glDeleteBuffers(1, &m_quadEbo);
+    }
     cleanupProjectM();
     doneCurrent();
 }
@@ -73,23 +83,28 @@ ProjectMWidget::~ProjectMWidget() {
 void ProjectMWidget::initializeGL() {
     std::cout << "[ProjectMWidget] Initializing OpenGL context" << std::endl;
     
-    // Initialize OpenGL functions
     initializeOpenGLFunctions();
     
-    // Set up OpenGL state
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     
-    // Initialize ProjectM
+    if (!m_fboRenderer->init(width(), height())) {
+        std::cerr << "[ProjectMWidget] Failed to initialize FBO Renderer!" << std::endl;
+        return;
+    }
+
+    initShaderProgram();
+    initRenderQuad();
+
+    const auto& textOverlayConfig = Core::Config::instance().visualizer().textOverlay;
+    if (!m_textRenderer->init(textOverlayConfig.fontPath, textOverlayConfig.fontSize)) {
+        std::cerr << "[ProjectMWidget] Failed to initialize Text Renderer!" << std::endl;
+    }
+
     if (!initializeProjectM()) {
         std::cerr << "[ProjectMWidget] Failed to initialize ProjectM!" << std::endl;
         return;
     }
     
-    // Start render timer (60 FPS)
     startRenderTimer();
 }
 
@@ -98,41 +113,123 @@ void ProjectMWidget::resizeGL(int w, int h) {
         std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
         projectm_set_window_size(pImpl->projectM, w, h);
     }
+    m_fboRenderer->init(w, h);
+    m_textRenderer->setProjection(w, h);
 }
 
 void ProjectMWidget::paintGL() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
     if (pImpl->projectM && pImpl->initialized) {
-        // Render ProjectM frame (guard against upstream exceptions)
         try {
             std::lock_guard<std::recursive_mutex> lock(pImpl->projectm_mutex);
-            // Optional: inject a small test signal for debug visibility
-            const auto& vcfg = NeonWave::Core::Config::instance().visualizer();
-            if (vcfg.debugInjectTestSignal) {
-                constexpr size_t frames = 512;
-                static float phase = 0.0f;
-                float buffer[frames * 2];
-                const float freq = 220.0f;
-                const float sampleRate = 48000.0f;
-                for (size_t i = 0; i < frames; ++i) {
-                    float s = 0.1f * sinf(2.0f * 3.14159265f * freq * (phase / sampleRate));
-                    buffer[2 * i] = s;
-                    buffer[2 * i + 1] = s;
-                    phase += 1.0f;
-                }
-                projectm_pcm_add_float(pImpl->projectM, buffer, frames * 2, PROJECTM_STEREO);
-            }
 
-            projectm_opengl_render_frame_fbo(pImpl->projectM, static_cast<uint32_t>(defaultFramebufferObject()));
+            m_fboRenderer->bind();
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            projectm_opengl_render_frame(pImpl->projectM);
+            m_fboRenderer->release();
+
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            m_shaderProgram->bind();
+            m_shaderProgram->setUniformValue("screenTexture", 0);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_fboRenderer->texture());
+            glBindVertexArray(m_quadVao);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            m_shaderProgram->release();
+
+            const auto& textOverlayConfig = Core::Config::instance().visualizer().textOverlay;
+            if (textOverlayConfig.show) {
+                m_textRenderer->renderText(pImpl->currentPresetName, 10.0f, 10.0f, 1.0f, glm::vec3(1.0f, 1.0f, 1.0f));
+            }
 
         } catch (const std::exception& e) {
             std::cerr << "[ProjectMWidget] Render error: " << e.what() << std::endl;
         }
     }
+
+    if (m_videoExporter->isRecording()) {
+        std::vector<unsigned char> frame_buffer(width() * height() * 3);
+        glReadPixels(0, 0, width(), height(), GL_RGB, GL_UNSIGNED_BYTE, frame_buffer.data());
+        m_videoExporter->writeFrame(frame_buffer);
+    }
 }
 
+void ProjectMWidget::startRecording(const std::string& outputPath) {
+    m_videoExporter->start(width(), height(), 60, outputPath);
+}
 
+void ProjectMWidget::stopRecording() {
+    m_videoExporter->stop();
+}
+
+void ProjectMWidget::initShaderProgram() {
+    const char* vertexShaderSource = R"(
+        #version 330 core
+        layout (location = 0) in vec2 aPos;
+        layout (location = 1) in vec2 aTexCoords;
+        out vec2 TexCoords;
+        void main() {
+            gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+            TexCoords = aTexCoords;
+        }
+    )";
+
+    const char* fragmentShaderSource = R"(
+        #version 330 core
+        out vec4 FragColor;
+        in vec2 TexCoords;
+        uniform sampler2D screenTexture;
+        void main() {
+            FragColor = texture(screenTexture, TexCoords);
+        }
+    )";
+
+    m_shaderProgram = new QOpenGLShaderProgram(this);
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
+        std::cerr << "Vertex shader compilation error: " << m_shaderProgram->log().toStdString() << std::endl;
+        return;
+    }
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource)) {
+        std::cerr << "Fragment shader compilation error: " << m_shaderProgram->log().toStdString() << std::endl;
+        return;
+    }
+    if (!m_shaderProgram->link()) {
+        std::cerr << "Shader program linking error: " << m_shaderProgram->log().toStdString() << std::endl;
+        return;
+    }
+}
+
+void ProjectMWidget::initRenderQuad() {
+    float quadVertices[] = {
+        // positions   // texCoords
+        -1.0f,  1.0f,  0.0f, 1.0f,
+        -1.0f, -1.0f,  0.0f, 0.0f,
+         1.0f, -1.0f,  1.0f, 0.0f,
+         1.0f,  1.0f,  1.0f, 1.0f
+    };
+    unsigned int quadIndices[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    glGenVertexArrays(1, &m_quadVao);
+    glGenBuffers(1, &m_quadVbo);
+    glGenBuffers(1, &m_quadEbo);
+
+    glBindVertexArray(m_quadVao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_quadVbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_quadEbo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    glBindVertexArray(0);
+}
 
 bool ProjectMWidget::initializeProjectM() {
     std::cout << "[ProjectMWidget] Initializing ProjectM..." << std::endl;
@@ -192,7 +289,9 @@ bool ProjectMWidget::initializeProjectM() {
         try {
             for (const auto& entry : std::filesystem::recursive_directory_iterator(presetPath)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".milk") {
-                    discoveredPresets.emplace_back(entry.path().string());
+                    if (!Visualizer::PresetManager::instance().isBlacklisted(entry.path().stem().string())) {
+                        discoveredPresets.emplace_back(entry.path().string());
+                    }
                 }
             }
         } catch (const std::filesystem::filesystem_error& e) {
@@ -409,7 +508,9 @@ void ProjectMWidget::setPresetAndTextureDirs(const std::string& presetDir, const
         try {
             for (const auto& entry : std::filesystem::recursive_directory_iterator(presetPath)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".milk") {
-                    newPresets.emplace_back(entry.path().string());
+                    if (!Visualizer::PresetManager::instance().isBlacklisted(entry.path().stem().string())) {
+                        newPresets.emplace_back(entry.path().string());
+                    }
                 }
             }
         } catch (const std::filesystem::filesystem_error& e) {

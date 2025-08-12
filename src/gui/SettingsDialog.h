@@ -47,6 +47,17 @@ private:
     QPushButton* m_browsePresetDir{};
     QLineEdit* m_textureDir{};
     QPushButton* m_browseTextureDir{};
+
+    // Recording tab controls
+    QLineEdit* m_recordingOutputDir{};
+    QPushButton* m_browseRecordingOutputDir{};
+    QSpinBox* m_recordingFramerate{};
+
+    // Text Overlay tab controls
+    QLineEdit* m_fontPath{};
+    QPushButton* m_browseFontPath{};
+    QSpinBox* m_fontSize{};
+    QCheckBox* m_showTextOverlay{};
 };
 
 } // namespace NeonWave::GUI

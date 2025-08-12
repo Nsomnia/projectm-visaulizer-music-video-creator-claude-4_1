@@ -168,6 +168,10 @@ private:
     QAction* m_fullscreenAction;
     QAction* m_aboutAction;
     QAction* m_quitAction;
+    QAction* m_recordAction;
+
+    // Recording state
+    bool m_isRecording = false;
 };
 
 } // namespace NeonWave::GUI

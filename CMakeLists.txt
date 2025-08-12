@@ -24,6 +24,12 @@ pkg_check_modules(SDL2 REQUIRED sdl2)
 # Find audio libraries
 pkg_check_modules(PULSE REQUIRED libpulse)
 
+# Find FreeType for text rendering
+pkg_check_modules(FREETYPE REQUIRED freetype2)
+
+# Find GLM for math
+find_package(glm REQUIRED)
+
 # projectM integration options
 option(NEONWAVE_FETCH_PROJECTM "Fetch projectM from Git if external/projectm is missing" ON)
 set(NEONWAVE_PROJECTM_GIT_REPO "https://github.com/projectM-visualizer/projectm.git" CACHE STRING "projectM repository URL")
@@ -72,12 +78,15 @@ include_directories(
     ${PROJECTM_SOURCE_DIR}/src/api/include
     ${SDL2_INCLUDE_DIRS}
     ${PULSE_INCLUDE_DIRS}
+    ${FREETYPE_INCLUDE_DIRS}
+    ${GLM_INCLUDE_DIRS}
 )
 
 # Link directories
 link_directories(
     ${SDL2_LIBRARY_DIRS}
     ${PULSE_LIBRARY_DIRS}
+    ${FREETYPE_LIBRARY_DIRS}
 )
 
 # Source files
@@ -91,6 +100,7 @@ set(SOURCES
     src/core/audio/AudioEngine.cpp
     src/visualizer/ProjectMWidget.cpp
     src/visualizer/PresetManager.cpp
+    src/visualizer/TextRenderer.cpp
     src/core/utils/FileUtils.cpp
     src/core/utils/StringUtils.cpp
 )
@@ -116,6 +126,7 @@ target_link_libraries(${PROJECT_NAME}
     projectM-4-playlist
     ${SDL2_LIBRARIES}
     ${PULSE_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
