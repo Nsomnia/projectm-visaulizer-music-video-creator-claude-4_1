@@ -124,6 +124,55 @@ void SettingsDialog::buildUI() {
 
     tabs->addTab(visTab, "Visualizer");
 
+    // Recording tab
+    auto* recTab = new QWidget(this);
+    auto* recForm = new QFormLayout(recTab);
+
+    m_recordingOutputDir = new QLineEdit(recTab);
+    m_browseRecordingOutputDir = new QPushButton("Browse...", recTab);
+    auto* recDirRow = new QWidget(recTab);
+    auto* recDirLayout = new QHBoxLayout(recDirRow);
+    recDirLayout->setContentsMargins(0, 0, 0, 0);
+    recDirLayout->addWidget(m_recordingOutputDir, 1);
+    recDirLayout->addWidget(m_browseRecordingOutputDir);
+    recForm->addRow("Output directory", recDirRow);
+    connect(m_browseRecordingOutputDir, &QPushButton::clicked, this, [this]() {
+        const auto dir = QFileDialog::getExistingDirectory(this, "Select output directory");
+        if (!dir.isEmpty()) m_recordingOutputDir->setText(dir);
+    });
+
+    m_recordingFramerate = new QSpinBox(recTab);
+    m_recordingFramerate->setRange(15, 240);
+    recForm->addRow("Framerate", m_recordingFramerate);
+
+    tabs->addTab(recTab, "Recording");
+
+    // Text Overlay tab
+    auto* textTab = new QWidget(this);
+    auto* textForm = new QFormLayout(textTab);
+
+    m_fontPath = new QLineEdit(textTab);
+    m_browseFontPath = new QPushButton("Browse...", textTab);
+    auto* fontPathRow = new QWidget(textTab);
+    auto* fontPathLayout = new QHBoxLayout(fontPathRow);
+    fontPathLayout->setContentsMargins(0, 0, 0, 0);
+    fontPathLayout->addWidget(m_fontPath, 1);
+    fontPathLayout->addWidget(m_browseFontPath);
+    textForm->addRow("Font path", fontPathRow);
+    connect(m_browseFontPath, &QPushButton::clicked, this, [this]() {
+        const auto file = QFileDialog::getOpenFileName(this, "Select font file");
+        if (!file.isEmpty()) m_fontPath->setText(file);
+    });
+
+    m_fontSize = new QSpinBox(textTab);
+    m_fontSize->setRange(8, 128);
+    textForm->addRow("Font size", m_fontSize);
+
+    m_showTextOverlay = new QCheckBox("Show text overlay", textTab);
+    textForm->addRow(m_showTextOverlay);
+
+    tabs->addTab(textTab, "Text Overlay");
+
     // Buttons
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
@@ -152,6 +201,13 @@ void SettingsDialog::loadFromConfig() {
     m_loadRandomPresetOnStartup->setChecked(v.loadRandomPresetOnStartup);
     m_presetDir->setText(QString::fromStdString(v.presetDirectory));
     m_textureDir->setText(QString::fromStdString(v.textureDirectory));
+
+    m_recordingOutputDir->setText(QString::fromStdString(v.recording.outputDirectory));
+    m_recordingFramerate->setValue(v.recording.framerate);
+
+    m_fontPath->setText(QString::fromStdString(v.textOverlay.fontPath));
+    m_fontSize->setValue(v.textOverlay.fontSize);
+    m_showTextOverlay->setChecked(v.textOverlay.show);
 }
 
 void SettingsDialog::saveToConfig() {
@@ -171,6 +227,14 @@ void SettingsDialog::saveToConfig() {
     v.loadRandomPresetOnStartup = m_loadRandomPresetOnStartup->isChecked();
     v.presetDirectory = m_presetDir->text().toStdString();
     v.textureDirectory = m_textureDir->text().toStdString();
+
+    v.recording.outputDirectory = m_recordingOutputDir->text().toStdString();
+    v.recording.framerate = m_recordingFramerate->value();
+
+    v.textOverlay.fontPath = m_fontPath->text().toStdString();
+    v.textOverlay.fontSize = m_fontSize->value();
+    v.textOverlay.show = m_showTextOverlay->isChecked();
+
     cfg.save();
 }
 

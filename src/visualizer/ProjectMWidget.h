@@ -11,6 +11,12 @@
 #include <string>
 #include <mutex>
 
+#include "FboRenderer.h"
+#include "VideoExporter.h"
+#include "TextRenderer.h"
+
+class QOpenGLShaderProgram;
+
 namespace NeonWave::GUI {
 
 /**
@@ -54,6 +60,9 @@ public:
      * @return Name of the active preset
      */
     std::string getCurrentPresetName() const;
+
+    void startRecording(const std::string& outputPath);
+    void stopRecording();
     
     public slots:
     /**
@@ -107,6 +116,14 @@ private:
 
     class Impl;
     std::unique_ptr<Impl> pImpl;
+
+    std::unique_ptr<FboRenderer> m_fboRenderer;
+    std::unique_ptr<VideoExporter> m_videoExporter;
+    std::unique_ptr<TextRenderer> m_textRenderer;
+    QOpenGLShaderProgram* m_shaderProgram = nullptr;
+    GLuint m_quadVao = 0;
+    GLuint m_quadVbo = 0;
+    GLuint m_quadEbo = 0;
     
     /**
      * @brief Initialize ProjectM instance
@@ -118,6 +135,16 @@ private:
      * @brief Clean up ProjectM resources
      */
     void cleanupProjectM();
+
+    /**
+     * @brief Initializes the shader program for rendering the FBO texture.
+     */
+    void initShaderProgram();
+
+    /**
+     * @brief Initializes the geometry for rendering the FBO texture.
+     */
+    void initRenderQuad();
     
     /**
      * @brief Start render timer

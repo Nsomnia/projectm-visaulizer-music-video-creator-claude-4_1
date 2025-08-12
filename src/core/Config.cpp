@@ -61,6 +61,19 @@ void Config::load() {
         if (v.contains("texture_directory")) m_visualizer.textureDirectory = v.value("texture_directory").toString().toStdString();
         if (v.contains("debug_inject_test_signal")) m_visualizer.debugInjectTestSignal = v.value("debug_inject_test_signal").toBool(false);
         if (v.contains("load_random_on_startup")) m_visualizer.loadRandomPresetOnStartup = v.value("load_random_on_startup").toBool(false);
+
+        if (v.contains("recording")) {
+            const auto r = v.value("recording").toObject();
+            if (r.contains("output_directory")) m_visualizer.recording.outputDirectory = r.value("output_directory").toString().toStdString();
+            if (r.contains("framerate")) m_visualizer.recording.framerate = r.value("framerate").toInt(60);
+        }
+
+        if (v.contains("text_overlay")) {
+            const auto t = v.value("text_overlay").toObject();
+            if (t.contains("font_path")) m_visualizer.textOverlay.fontPath = t.value("font_path").toString().toStdString();
+            if (t.contains("font_size")) m_visualizer.textOverlay.fontSize = t.value("font_size").toInt(48);
+            if (t.contains("show")) m_visualizer.textOverlay.show = t.value("show").toBool(true);
+        }
     }
 }
 
@@ -88,6 +101,18 @@ void Config::save() const {
     v.insert("texture_directory", QString::fromStdString(m_visualizer.textureDirectory));
     v.insert("debug_inject_test_signal", m_visualizer.debugInjectTestSignal);
     v.insert("load_random_on_startup", m_visualizer.loadRandomPresetOnStartup);
+
+    QJsonObject r;
+    r.insert("output_directory", QString::fromStdString(m_visualizer.recording.outputDirectory));
+    r.insert("framerate", m_visualizer.recording.framerate);
+    v.insert("recording", r);
+
+    QJsonObject t;
+    t.insert("font_path", QString::fromStdString(m_visualizer.textOverlay.fontPath));
+    t.insert("font_size", m_visualizer.textOverlay.fontSize);
+    t.insert("show", m_visualizer.textOverlay.show);
+    v.insert("text_overlay", t);
+
     root.insert("visualizer", v);
 
     const auto path = settingsFilePath();

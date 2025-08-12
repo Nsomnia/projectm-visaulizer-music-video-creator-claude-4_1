@@ -6,6 +6,17 @@
 
 namespace NeonWave::Core {
 
+struct RecordingConfig {
+    std::string outputDirectory;
+    int framerate = 60;
+};
+
+struct TextOverlayConfig {
+    std::string fontPath;
+    int fontSize = 48;
+    bool show = true;
+};
+
 struct VisualizerConfig {
     int fps = 60;
     int meshX = 32;
@@ -21,6 +32,9 @@ struct VisualizerConfig {
     std::string textureDirectory;  // empty => use defaults
     bool debugInjectTestSignal = false; // developer toggle to verify rendering path
     bool loadRandomPresetOnStartup = false;
+
+    RecordingConfig recording;
+    TextOverlayConfig textOverlay;
 };
 
 struct AudioConfig {

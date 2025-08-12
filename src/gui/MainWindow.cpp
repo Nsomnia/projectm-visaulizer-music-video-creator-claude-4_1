@@ -92,6 +92,12 @@ void MainWindow::setupMenuBar() {
             this, &MainWindow::onAddFilesClicked);
     
     fileMenu->addSeparator();
+
+    m_recordAction = fileMenu->addAction("&Record Video");
+    m_recordAction->setCheckable(true);
+    connect(m_recordAction, &QAction::triggered, this, &MainWindow::onToggleRecording);
+
+    fileMenu->addSeparator();
     
     m_quitAction = fileMenu->addAction("&Quit");
     m_quitAction->setShortcut(QKeySequence::Quit);
@@ -394,6 +400,25 @@ void MainWindow::onBlacklistPreset() {
             Visualizer::PresetManager::instance().addToBlacklist(presetName.toStdString());
             statusBar()->showMessage("Preset blacklisted");
         }
+    }
+}
+
+void MainWindow::onToggleRecording() {
+    m_isRecording = !m_isRecording;
+    if (m_isRecording) {
+        QString filePath = QFileDialog::getSaveFileName(this, "Save Video", QDir::homePath(), "Video Files (*.mp4)");
+        if (!filePath.isEmpty()) {
+            m_visualizer->startRecording(filePath.toStdString());
+            m_recordAction->setText("Stop Recording");
+            statusBar()->showMessage("Recording started");
+        } else {
+            m_isRecording = false;
+            m_recordAction->setChecked(false);
+        }
+    } else {
+        m_visualizer->stopRecording();
+        m_recordAction->setText("Record Video");
+        statusBar()->showMessage("Recording stopped");
     }
 }
 
